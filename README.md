@@ -4,7 +4,7 @@
 <div align="center">
 <h3>Don't Stop Learning: Towards Continual Learning for the CLIP Model</h3>
 
-[Yuxuan Ding](https://yxding95.github.io/)<sup>1</sup>, [Lingqiao Liu](https://scholar.google.com.au/citations?user=Y2xu62UAAAAJ&hl=en&oi=ao)<sup>3</sup>, [Chunna Tian]<sup>1</sup>, [Jingyuan Yang](https://jingyuanyy.github.io/)<sup>3</sup>, [Haoxuan Ding]<sup>4</sup>
+[Yuxuan Ding](https://yxding95.github.io/)<sup>1</sup>, [Lingqiao Liu](https://scholar.google.com.au/citations?user=Y2xu62UAAAAJ&hl=en&oi=ao)<sup>3</sup>, Chunna Tian<sup>1</sup>, [Jingyuan Yang](https://jingyuanyy.github.io/)<sup>3</sup>, Haoxuan Ding<sup>4</sup>
 
 <sup>1</sup> Xidian University, <sup>3</sup> The University of Adelaide, <sup>3</sup> Shenzhen University, <sup>4</sup> Northwestern Polytechnical University
 
