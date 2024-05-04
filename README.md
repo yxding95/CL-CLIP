@@ -14,7 +14,7 @@
 
 ## Todo
 
-- [ ] release the code for CL-CLIP
+- [x] release the code for CL-CLIP
 
 ## Acknowledgments
 
