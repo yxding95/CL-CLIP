@@ -21,7 +21,7 @@
 Our work is standing on the shoulders of giants. We want to thank the following contributors that our code is based on:
 
 - open-source library of transformer models:
-  - (🤗 Transformers) https://github.com/huggingface/transformers
+  - (openai/CLIP) https://github.com/openai/CLIP
 
 
 ## Citation
