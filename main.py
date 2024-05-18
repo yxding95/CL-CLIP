@@ -237,7 +237,7 @@ def main(args):
         
     else:
         phase_matrix = np.zeros((8, 8))
-        for phase in range(8):
+        for phase in range(phase_matrix.shape[0]):
             trainset = MST(args.update_data, args.update_img, phase=phase, pseudo_cls=args.pseudo_cls, pseudo_length=args.pseudo_length)
             train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 
