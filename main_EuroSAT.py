@@ -296,7 +296,7 @@ def main(args):
                 param.requires_grad_(False)
             teacher.eval()
             if replay_loader is not None:
-                add_data = Replayed_MST(args.update_data, args.update_img, phase=phase)
+                add_data = EuroSAT(args.update_img, phase=phase, is_replay=True)
                 replayset = ConcatDataset((replayset, add_data))
                 replay_loader = DataLoader(replayset, batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 

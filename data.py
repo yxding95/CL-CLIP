@@ -421,7 +421,7 @@ class Replayed_MST(Dataset):
         return sample
 
 class EuroSAT(ImageFolder):
-    def __init__(self, root, is_test=False, phase=None, transform=None, target_transform=None, pseudo_cls=None, pseudo_length=None):
+    def __init__(self, root, is_test=False, is_replay=False, phase=None, transform=None, target_transform=None, pseudo_cls=None, pseudo_length=None):
         super().__init__(root, transform=transform, target_transform=target_transform)
         self.transform = T.Compose([
                         T.Resize(256, interpolation=Image.BICUBIC),
@@ -453,7 +453,10 @@ class EuroSAT(ImageFolder):
             else:
                 for _ in samples_split:
                     if _//2 == phase:
-                        self.samples.extend(samples_split[_][:-500])
+                        if is_replay:
+                            self.samples.extend(random.sample(samples_split[_][:-500], 250))
+                        else:
+                            self.samples.extend(samples_split[_][:-500])
                     else:
                         continue
 
