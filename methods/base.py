@@ -116,6 +116,7 @@ class Base(object):
         self.epoch = input_params["train_epoch"]
         self.step_start = input_params["global_step"]
         self.train_loader = input_params["train_loader"]
+        self.replay_loader = input_params["replay_loader"]
         self.test_loader = input_params["test_loader"]
         self.zs_loader = input_params["zs_loader"]
         self.coco_loader = input_params["coco_loader"]
@@ -128,6 +129,7 @@ class Base(object):
         self.logging_dir = input_params["logging_dir"]
         self.method = input_params["method"]
         self.mode = input_params["mode"]
+        self.part = input_params["part"]
         self.lr = input_params["lr"]
         
         if "phase" in input_params.keys():
@@ -172,9 +174,6 @@ class Base(object):
                 image_features, _ = self.model.encode_image(I)
                 image_features = image_features / image_features.norm(dim=-1, keepdim=True)
                 
-                if self.method == "rkr":
-                    logit_scale = (self.model.logit_scale * self.model.LGM)+self.model.LGA
-                    logit_scale = logit_scale.exp()
                 logit_scale = self.model.logit_scale.exp()
                 logits_per_image = logit_scale * image_features @ text_features.t()
                 logits_per_image = F.softmax(logits_per_image, dim=1)

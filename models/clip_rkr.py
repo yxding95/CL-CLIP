@@ -257,11 +257,12 @@ class LoraInjectedLinear(nn.Module):
         self.lora_down = nn.Linear(in_features, r, bias=False)
         self.dropout = nn.Dropout(dropout_p)
         self.lora_up = nn.Linear(r, out_features, bias=False)
-        self.scale = nn.Parameter(torch.zeros([]))
+        self.scale = nn.Parameter(torch.ones(out_features))
         self.selector = nn.Identity()
 
         nn.init.normal_(self.lora_down.weight, std=1 / r)
-        nn.init.zeros_(self.lora_up.weight)
+        nn.init.zeros_(self.lora_down.weight)
+        #nn.init.zeros_(self.lora_up.weight)
 
     def forward(self, input):
         return (
@@ -269,6 +270,7 @@ class LoraInjectedLinear(nn.Module):
             + self.dropout(self.lora_up(self.selector(self.lora_down(input)))))
             * self.scale
         )
+        #return self.linear(input) * self.scale
 
     def realize_as_lora(self):
         return self.lora_up.weight.data * self.scale, self.lora_down.weight.data
@@ -281,6 +283,32 @@ class LoraInjectedLinear(nn.Module):
         self.selector.weight.data = self.selector.weight.data.to(
             self.lora_up.weight.device
         ).to(self.lora_up.weight.dtype)
+
+class WoLoraInjectedLinear(nn.Module):
+    def __init__(
+        self, in_features, out_features, bias=False, r=4, dropout_p=0.1,
+    ):
+        super().__init__()
+
+        if r > min(in_features, out_features):
+            raise ValueError(
+                f"LoRA rank {r} must be less or equal than {min(in_features, out_features)}"
+            )
+        self.r = r
+        self.linear = nn.Linear(in_features, out_features, bias)
+        #self.lora_down = nn.Linear(in_features, r, bias=False)
+        #self.dropout = nn.Dropout(dropout_p)
+        #self.lora_up = nn.Linear(r, out_features, bias=False)
+        self.scale = nn.Parameter(torch.ones(out_features))
+        #self.selector = nn.Identity()
+
+        #nn.init.normal_(self.lora_down.weight, std=1 / r)
+        #nn.init.zeros_(self.lora_down.weight)
+        #nn.init.zeros_(self.lora_up.weight)
+
+    def forward(self, input):
+        return self.linear(input) * self.scale
+
 
 def _find_modules_v2(
     model,
@@ -468,6 +496,7 @@ class CLIP_RKR(nn.Module):
         loras=None,  # path to lora .pt
         verbose: bool = False,
         dropout_p: float = 0.0,
+        woLora: bool = False
     ):
         """
         inject lora into model, and returns lora parameter groups.
@@ -486,32 +515,58 @@ class CLIP_RKR(nn.Module):
             if verbose:
                 print("LoRA Injection : injecting lora into ", name)
                 print("LoRA Injection : weight shape", weight.shape)
-            _tmp = LoraInjectedLinear(
-                _child_module.in_features,
-                _child_module.out_features,
-                _child_module.bias is not None,
-                r=r,
-                dropout_p=dropout_p,
-            )
-            _tmp.linear.weight = weight
-            if bias is not None:
-                _tmp.linear.bias = bias
+            
+            if not woLora:
+                _tmp = LoraInjectedLinear(
+                    _child_module.in_features,
+                    _child_module.out_features,
+                    _child_module.bias is not None,
+                    r=r,
+                    dropout_p=dropout_p,
+                )
+                _tmp.linear.weight = weight
+                if bias is not None:
+                    _tmp.linear.bias = bias
 
-            # switch the module
-            _tmp.to(_child_module.weight.device).to(_child_module.weight.dtype)
-            _module._modules[name] = _tmp
+                # switch the module
+                _tmp.to(_child_module.weight.device).to(_child_module.weight.dtype)
+                _module._modules[name] = _tmp
 
-            require_grad_params.append(_module._modules[name].lora_up.parameters())
-            require_grad_params.append(_module._modules[name].lora_down.parameters())
-            require_grad_params.append(_module._modules[name].scale)
+                require_grad_params.append(_module._modules[name].lora_up.parameters())
+                require_grad_params.append(_module._modules[name].lora_down.parameters())
+                require_grad_params.append(_module._modules[name].scale)
 
-            if loras != None:
-                _module._modules[name].lora_up.weight = loras.pop(0)
-                _module._modules[name].lora_down.weight = loras.pop(0)
+                if loras != None:
+                    _module._modules[name].lora_up.weight = loras.pop(0)
+                    _module._modules[name].lora_down.weight = loras.pop(0)
+                    _module._modules[name].scale = loras.pop(0)
 
-            _module._modules[name].lora_up.weight.requires_grad = True
-            _module._modules[name].lora_down.weight.requires_grad = True
-            _module._modules[name].scale.requires_grad = True
-            names.append(name)
+                _module._modules[name].lora_up.weight.requires_grad = True
+                _module._modules[name].lora_down.weight.requires_grad = True
+                _module._modules[name].scale.requires_grad = True
+                names.append(name)
+            else:
+                _tmp = WoLoraInjectedLinear(
+                    _child_module.in_features,
+                    _child_module.out_features,
+                    _child_module.bias is not None,
+                    r=r,
+                    dropout_p=dropout_p,
+                )
+                _tmp.linear.weight = weight
+                if bias is not None:
+                    _tmp.linear.bias = bias
+
+                # switch the module
+                _tmp.to(_child_module.weight.device).to(_child_module.weight.dtype)
+                _module._modules[name] = _tmp
+
+                require_grad_params.append(_module._modules[name].scale)
+
+                if loras != None:
+                    _module._modules[name].scale = loras.pop(0)
+
+                _module._modules[name].scale.requires_grad = True
+                names.append(name)
 
         return require_grad_params, names

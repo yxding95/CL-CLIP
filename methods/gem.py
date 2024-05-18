@@ -1,5 +1,4 @@
 import sys
-import itertools
 from .base import Base
 import torch
 from torch import nn, optim
@@ -8,16 +7,15 @@ import torch.nn.functional as F
 
 device = torch.device("cuda")
 
-class FT(Base):
+class GEM(Base):
 
-    def train(self, param_lora=None):
+    def train(self):
         self.model.train()
         train_step_perepoch = len(self.train_loader)
         C, _ = self.train_loader.dataset.get_ClsName()
         C = C.to(device)
 
         criterion_XE = nn.CrossEntropyLoss(reduction='none')
-        #optimizer = optim.Adam([{'params': self.model.parameters() if param_lora is None else itertools.chain(*param_lora), 'lr': self.lr}])
         optimizer = optim.Adam([{'params': self.model.parameters(),'lr': self.lr}])
         lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10*train_step_perepoch, gamma=0.1)
 
@@ -27,6 +25,8 @@ class FT(Base):
             text_fmask.view(1, -1)
 
         scaler = GradScaler()
+        replay_loader = iter(self.replay_loader)
+        self.G = torch.empty(0)
         for j in range(self.epoch):
             running_loss = 0.0
             self.model.train()
@@ -36,31 +36,90 @@ class FT(Base):
 
                 I = data['image'].to(device)
                 L = data['target'].to(device)
+                try:
+                    replay = next(replay_loader)
+                except:
+                    replay_loader = iter(self.replay_loader)
+                    replay = next(replay_loader)
+                RI = data['image'].to(device)
+                RC = data['caption'].to(device)
 
                 with autocast():
+                    #replayed part
+                    optimizer.zero_grad()
+                    ref_image_features, _ = self.model.encode_image(RI)
+                    ref_image_features = ref_image_features / ref_image_features.norm(dim=-1, keepdim=True)
+                    ref_text_features, _ = self.model.encode_text(RC)
+                    ref_text_features = ref_text_features / ref_text_features.norm(dim=-1, keepdim=True)
+
+                    logit_scale = self.model.logit_scale.exp()
+                    logits_per_image = logit_scale * ref_image_features @ ref_text_features.t()
+                    logits_per_text = logits_per_image.t()
+
+                    loss_ref = 1/2 *  \
+                        (criterion_XE(logits_per_image, torch.arange(logits_per_image.shape[0], dtype=torch.long, device=device)).mean() \
+                        + criterion_XE(logits_per_text, torch.arange(logits_per_image.shape[0], dtype=torch.long, device=device)).mean())
+                    
+                    #loss_ref.backward(retain_graph=True)
+                    scaler.scale(loss_ref).backward(retain_graph=True)
+                    G.append(
+                        torch.cat(
+                            [
+                                (
+                                    p.grad.flatten()
+                                    if p.grad is not None
+                                    else torch.zeros(p.numel(), device=device)
+                                )
+                                for p in self.model.parameters()
+                            ],
+                            dim=0,
+                        )
+                    )
+
+                    self.G = torch.stack(G)  # (experiences, parameters)
+                    optimizer.zero_grad()
+
                     image_features, _ = self.model.encode_image(I)
                     image_features = image_features / image_features.norm(dim=-1, keepdim=True)
                     text_features, _ = self.model.encode_text(C)
                     text_features = text_features / text_features.norm(dim=-1, keepdim=True)
                     
-                    logit_scale = self.model.logit_scale.exp()
                     logits_per_image = logit_scale * image_features @ text_features.t()
                     if self.mode == "mst":
                         logits_per_image = logits_per_image.masked_fill(text_fmask == 0, -1e4)
                     
                     loss = criterion_XE(logits_per_image, L).mean()
-                
+
                 optimizer.zero_grad()
                 total_loss = loss
                 running_loss += total_loss.data
                 scaler.scale(total_loss).backward()
-                # for name, param in self.model.named_parameters():
-                #     if param.requires_grad:
-                #         print(name, param.mean())
-                #         #break
-                torch.nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, self.model.parameters()), 1.0)
+                #total_loss.backward(retain_graph=True)
+                #torch.nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, self.model.parameters()), 1.0)
+                current_gradients_list = [
+                    (
+                        p.grad.view(-1)
+                        if p.grad is not None
+                        else torch.zeros(p.numel(), device=device)
+                    )
+                    for n, p in self.model.named_parameters()
+                ]
+                current_gradients = torch.cat(current_gradients_list)
+                dotg = torch.dot(current_gradients, reference_gradients)
+                if dotg < 0:
+                    alpha2 = dotg / torch.dot(
+                        reference_gradients, reference_gradients
+                    )
+                    grad_proj = current_gradients - reference_gradients * alpha2
+
+                    count = 0
+                    for n, p in self.model.named_parameters():
+                        n_param = p.numel()
+                        if p.grad is not None:
+                            p.grad.copy_(grad_proj[count : count + n_param].view_as(p))
+                        count += n_param
                 scaler.step(optimizer)
-                scaler.update()  
+                scaler.update()
 
                 self.writer.add_scalar('batch_loss', total_loss.data, global_step=global_step)
                 self.writer.add_scalar('XE_loss', loss.data, global_step=global_step)

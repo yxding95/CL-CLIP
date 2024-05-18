@@ -397,9 +397,7 @@ class MultiheadAttention(torch.nn.Module):
         - attn_output_weights: :math:`(N, L, S)` where N is the batch size,
           L is the target sequence length, S is the source sequence length.
         """
-        if out_proj_weight == None:
-           out_proj_weight = self.out_proj.linear.weight
-        
+
         if not self._qkv_same_embed_dim:
             return multi_head_attention_forward(
                 query, key, value, self.embed_dim, self.num_heads,

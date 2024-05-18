@@ -1,5 +1,4 @@
 import sys
-import itertools
 from .base import Base
 import torch
 from torch import nn, optim
@@ -8,23 +7,38 @@ import torch.nn.functional as F
 
 device = torch.device("cuda")
 
-class FT(Base):
+def LwF_KL(logits, labels, T=1.):
 
-    def train(self, param_lora=None):
+    log_p = torch.log_softmax(logits / T, dim=1)
+    q = torch.softmax(labels / T, dim=1)
+    
+    outputs = F.kl_div(log_p, q, reduction="batchmean")
+    return outputs
+
+class VRD(Base):
+
+    def train(self, vrd_alpha):
         self.model.train()
         train_step_perepoch = len(self.train_loader)
         C, _ = self.train_loader.dataset.get_ClsName()
         C = C.to(device)
 
         criterion_XE = nn.CrossEntropyLoss(reduction='none')
-        #optimizer = optim.Adam([{'params': self.model.parameters() if param_lora is None else itertools.chain(*param_lora), 'lr': self.lr}])
         optimizer = optim.Adam([{'params': self.model.parameters(),'lr': self.lr}])
         lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10*train_step_perepoch, gamma=0.1)
+
+        with torch.no_grad():
+            text_base, _ = self.teacher.encode_text(C)
+            text_base_norm = text_base / text_base.norm(dim=-1, keepdim=True)
 
         if self.mode == "mst":
             text_fmask = torch.zeros(len(C), dtype=torch.long).to(device)
             text_fmask[10*self.phase: 10*(self.phase+1)] = 1
             text_fmask.view(1, -1)
+
+            lwf_mask = torch.zeros(len(C), dtype=torch.long).to(device)
+            lwf_mask[: 10*(self.phase+1)] = 1
+            lwf_mask = lwf_mask.view(1, -1)
 
         scaler = GradScaler()
         for j in range(self.epoch):
@@ -36,41 +50,64 @@ class FT(Base):
 
                 I = data['image'].to(device)
                 L = data['target'].to(device)
+                P = self.train_loader.dataset.get_PseudoCls().to(device)
 
+                with torch.no_grad():
+                    image_base, _ = self.teacher.encode_image(I)
+                    image_base_norm = image_base / image_base.norm(dim=-1, keepdim=True)
+                    logits_base = self.teacher.logit_scale.exp() * image_base_norm @ text_base_norm.t()
+
+                    pseudo_base, _ = self.teacher.encode_text(P)
+                    pseudo_base_norm = pseudo_base / pseudo_base.norm(dim=-1, keepdim=True)
+                    pseudo_logits_base = self.teacher.logit_scale.exp() * image_base_norm @ pseudo_base_norm.t()
+                    
                 with autocast():
                     image_features, _ = self.model.encode_image(I)
-                    image_features = image_features / image_features.norm(dim=-1, keepdim=True)
                     text_features, _ = self.model.encode_text(C)
+                    pseudo_features, _ = self.model.encode_text(P)
+
+                    image_features = image_features / image_features.norm(dim=-1, keepdim=True)
                     text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-                    
+                    pseudo_features = pseudo_features / pseudo_features.norm(dim=-1, keepdim=True)
+
                     logit_scale = self.model.logit_scale.exp()
                     logits_per_image = logit_scale * image_features @ text_features.t()
+                    pseudo_logits = logit_scale * image_features @ pseudo_features.t()
+
                     if self.mode == "mst":
+                        if self.phase > 0:
+                            logits_base = logits_base.masked_fill(lwf_mask == 0, -1e4)
+                            logits_lwf = logits_per_image.masked_fill(lwf_mask == 0, -1e4)
+                            loss_lwf = LwF_KL(logits_lwf, logits_base)
+                        else:
+                            loss_lwf = torch.zeros([]).to(device)
+                        loss_vrd = LwF_KL(pseudo_logits, pseudo_logits_base).mean()
                         logits_per_image = logits_per_image.masked_fill(text_fmask == 0, -1e4)
-                    
-                    loss = criterion_XE(logits_per_image, L).mean()
-                
+                        loss = criterion_XE(logits_per_image, L).mean()                       
+                        total_loss = loss + vrd_alpha * (loss_lwf + loss_vrd)
+                    else:
+                        loss_vrd = LwF_KL(pseudo_logits, pseudo_logits_base).mean()
+                        loss = criterion_XE(logits_per_image, L).mean()
+                        total_loss = loss + vrd_alpha * loss_vrd
+
                 optimizer.zero_grad()
-                total_loss = loss
                 running_loss += total_loss.data
                 scaler.scale(total_loss).backward()
-                # for name, param in self.model.named_parameters():
-                #     if param.requires_grad:
-                #         print(name, param.mean())
-                #         #break
                 torch.nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, self.model.parameters()), 1.0)
                 scaler.step(optimizer)
                 scaler.update()  
 
                 self.writer.add_scalar('batch_loss', total_loss.data, global_step=global_step)
                 self.writer.add_scalar('XE_loss', loss.data, global_step=global_step)
+                self.writer.add_scalar('loss_vrd', loss_vrd.data, global_step=global_step)
                 if self.mode == "mst":
-                    print('Gstep: %6d; epoch: %d; [%5d] loss: %.3f ; learning_rate: %f' 
-                            % (global_step, (self.epoch*self.phase+j), k, total_loss.data,
+                    self.writer.add_scalar('loss_lwf', loss_lwf.data, global_step=global_step)
+                    print('Gstep: %6d; epoch: %d; [%5d] loss: %.3f (%.3f, %.3f, %.3f); learning_rate: %f' 
+                            % (global_step, (self.epoch*self.phase+j), k, total_loss.data, loss.data, loss_vrd.data, loss_lwf.data,
                             optimizer.param_groups[0]['lr']))
                 else:
-                    print('Gstep: %6d; epoch: %d; [%5d] loss: %.3f; learning_rate: %f' 
-                            % (global_step, j, k, total_loss.data, 
+                    print('Gstep: %6d; epoch: %d; [%5d] loss: %.3f (%.3f, %.3f); learning_rate: %f' 
+                            % (global_step, j, k, total_loss.data, loss.data, loss_vrd.data,
                             optimizer.param_groups[0]['lr']))
                     lr_scheduler.step()
             

@@ -49,12 +49,22 @@ class GeoDL(Base):
                     text_features, _ = self.model.encode_text(C)
 
                     try:
-                        dist_image = gfk.fit(image_features, image_base)
-                        if self.mode == "mst":
-                            dist_text = gfk.fit(text_features[:10*(self.phase+1)], text_base[:10*(self.phase+1)])
-                        else:
-                            dist_text = gfk.fit(text_features, text_base)
-                    
+                        if args.part == "wm":
+                            dist_image = gfk.fit(image_features, image_base)
+                            if self.mode == "mst":
+                                dist_text = gfk.fit(text_features[:10*(self.phase+1)], text_base[:10*(self.phase+1)])
+                            else:
+                                dist_text = gfk.fit(text_features, text_base)
+                        elif args.part == "io":
+                            dist_image = gfk.fit(image_features, image_base)
+                            dist_text = torch.zeros_like(dist_image)
+                        elif args.part == "to":
+                            if self.mode == "mst":
+                                dist_text = gfk.fit(text_features[:10*(self.phase+1)], text_base[:10*(self.phase+1)])
+                            else:
+                                dist_text = gfk.fit(text_features, text_base)
+                            dist_image = torch.zeros_like(dist_text)                       
+                        
                         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
                         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
                         logit_scale = self.model.logit_scale.exp()

@@ -15,7 +15,7 @@ from torch.backends import cudnn
 
 from models.clip import CLIP
 from models.clip_rkr import CLIP_RKR, _find_modules_v2
-from data import OST, RetriTask, ZSTask, MST, Replayed, Replayed_MST
+from data import OST, RetriTask, ZSTask, MST, Replayed, Replayed_MST, EuroSAT
 from methods import FT, LwF, IMM, GeoDL, VRD, AGEM
 
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -164,7 +164,7 @@ def main(args):
     #     #trainset = MST(args.update_data, args.update_img, phase=0, pseudo_cls=args.pseudo_cls, pseudo_length=args.pseudo_length)
     #     #train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 
-    testset = OST(args.update_data, args.update_img, split='test')
+    testset = EuroSAT(args.update_img, is_test=True)
     test_loader = DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=num_workers, drop_last=False)
 
     coco_retri = RetriTask(args.retri_coco_data, args.retri_coco_img)
@@ -185,8 +185,7 @@ def main(args):
     global_step = 0
     writer = SummaryWriter(args.logging_dir)
     if args.mode == "ost":
-        trainset = OST(args.update_data, args.update_img, args.pseudo_cls, args.pseudo_length, split='train')
-        _, categories_name = trainset.get_ClsName()
+        trainset = EuroSAT(args.update_img, pseudo_cls=args.pseudo_cls, pseudo_length=args.pseudo_length)
         train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 
         input_params = {
@@ -236,9 +235,9 @@ def main(args):
             model = method.train()
         
     else:
-        phase_matrix = np.zeros((8, 8))
-        for phase in range(8):
-            trainset = MST(args.update_data, args.update_img, phase=phase, pseudo_cls=args.pseudo_cls, pseudo_length=args.pseudo_length)
+        phase_matrix = np.zeros((5, 5))
+        for phase in range(5):
+            trainset = EuroSAT(args.update_img, phase=phase, pseudo_cls=args.pseudo_cls, pseudo_length=args.pseudo_length)
             train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 
             input_params = {
@@ -342,7 +341,7 @@ if __name__ == '__main__':
     else:
         dir_splits[-2] = f"{args.method}_{args.part}_{args.mode}_{dir_splits[-2]}"
     args.logging_dir = "/".join(dir_splits)
-    
+    print(args.logging_dir)
     if isinstance(args.save_dir, str):
         dir_splits = args.save_dir.split("/")
         if dir_splits[-1] != "":
