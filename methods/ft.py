@@ -23,7 +23,7 @@ class FT(Base):
 
         if self.mode == "mst":
             text_fmask = torch.zeros(len(C), dtype=torch.long).to(device)
-            text_fmask[10*self.phase: 10*(self.phase+1)] = 1
+            text_fmask[(len(C)//self.phase_matrix.shape[0])*self.phase: (len(C)//self.phase_matrix.shape[0])*(self.phase+1)] = 1
             text_fmask.view(1, -1)
 
         scaler = GradScaler()
