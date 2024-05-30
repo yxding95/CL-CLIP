@@ -1,4 +1,5 @@
 import sys
+import os
 import copy
 from .base import Base
 import torch
@@ -36,9 +37,24 @@ class IMM(Base):
             text_fmask = torch.zeros(len(C), dtype=torch.long).to(device)
             text_fmask[(len(C)//self.phase_matrix.shape[0])*self.phase: (len(C)//self.phase_matrix.shape[0])*(self.phase+1)] = 1
             text_fmask.view(1, -1)
-        
+
+        resume_ckpt = None
+        for pt_file in os.listdir(self.logging_dir):
+            if os.path.splitext(pt_file)[1] == ".pt":
+                resume_ckpt = pt_file
+        if resume_ckpt is not None:
+            checkpoint = torch.load(pt_file)
+            self.model.load_state_dict(checkpoint['model'])
+            if checkpoint['optimizer'] is not None:
+                optimizer.load_state_dict(checkpoint['optimizer'])
+            if checkpoint['lr_scheduler'] is not None:
+                lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            start_epoch = checkpoint['epoch'] if self.mode == "ost" else -1
+        else:
+            start_epoch = -1
+
         scaler = GradScaler()
-        for j in range(self.epoch):
+        for j in range(start_epoch+1, self.epoch):
             running_loss = 0.0
             self.model.train()
             
@@ -118,8 +134,9 @@ class IMM(Base):
 
                 self.model.load_state_dict(model_state_zero)
                 sys.stdout = temp
-                if self.save_dir is not None:
-                    self.save(j)
+                #if self.save_dir is not None:
+                #    self.save(j)
+                self.save(j, optimizer, lr_scheduler)
                 
         if self.mode == "mst":
             model_state_zero, model_state = self.model_fusion(imm_alpha)
@@ -164,8 +181,8 @@ class IMM(Base):
             self.writer.add_figure('Phase%d'%self.phase, figure=self.plot_confusion_matrix())
 
             sys.stdout = temp
-            if self.save_dir is not None:
-                self.save(self.phase)
+            #if self.save_dir is not None:
+            self.save(self.phase)
             
             return self.model, global_step, self.phase_matrix
         else:

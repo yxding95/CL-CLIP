@@ -34,8 +34,6 @@ def random_seed(seed):
 def main(args):
     random_seed(args.seed)
     os.makedirs(args.logging_dir, exist_ok=True)
-    if args.save_dir is not None:
-        os.makedirs(args.save_dir, exist_ok=True)
 
     model_path = args.pretrained_path
     state_dict = torch.jit.load(model_path).state_dict()
@@ -198,7 +196,6 @@ def main(args):
             "coco_loader": coco_loader,
             "flickr_loader": flickr_loader,
             "zs_loader": zs_loader,
-            "save_dir": args.save_dir,
             "writer": writer,
             "embed_dim": embed_dim,
             "model": model,
@@ -250,7 +247,6 @@ def main(args):
                 "coco_loader": coco_loader,
                 "flickr_loader": flickr_loader,
                 "zs_loader": zs_loader,
-                "save_dir": args.save_dir,
                 "writer": writer,
                 "embed_dim": embed_dim,
                 "model": model,
@@ -326,7 +322,6 @@ if __name__ == '__main__':
     parser.add_argument("--alpha", type=float, default=0.5)
     parser.add_argument("--seed", type=int, default=10, help="A seed for reproducible training.")
     parser.add_argument("--logging_dir", type=str, default="./logs/")
-    parser.add_argument("--save_dir", default=None)
     args = parser.parse_args()
 
     if args.method == "vrd":
@@ -343,14 +338,6 @@ if __name__ == '__main__':
         dir_splits[-2] = f"{args.method}_{args.part}_{args.mode}_{dir_splits[-2]}"
     args.logging_dir = "/".join(dir_splits)
     
-    if isinstance(args.save_dir, str):
-        dir_splits = args.save_dir.split("/")
-        if dir_splits[-1] != "":
-            dir_splits[-1] = f"{args.method}_{args.part}_{args.mode}_{dir_splits[-1]}"
-        else:
-            dir_splits[-2] = f"{args.method}_{args.part}_{args.mode}_{dir_splits[-2]}"
-        args.save_dir = "/".join(dir_splits)
-
     main(args)
     print("Finish training ...")
 

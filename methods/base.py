@@ -1,9 +1,11 @@
+import os
 from sklearn.metrics import confusion_matrix
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 import itertools
 from tqdm import tqdm
@@ -125,7 +127,6 @@ class Base(object):
         self.model = input_params["model"]
         self.teacher = input_params["teacher"]
         self.embed_dim = input_params["embed_dim"]
-        self.save_dir = input_params["save_dir"]
         self.logging_dir = input_params["logging_dir"]
         self.method = input_params["method"]
         self.mode = input_params["mode"]
@@ -137,16 +138,20 @@ class Base(object):
         if "phase_matrix" in input_params.keys():
             self.phase_matrix = input_params["phase_matrix"]
 
-    def save(self, epoch):
-        model_dict = self.model.state_dict()
-        data = {k: v for k, v in model_dict.items()}
-        save_path = os.path.join(self.save_dir, str(epoch)+'.npz')
+    def save(self, epoch, optimizer=None, lr_scheduler=None):
+        train_dict = {
+            'epoch': epoch,
+            'model': self.model.state_dict(),
+            'optimizer': optimizer.state_dict() if optimizer is not None else None,
+            'lr_scheduler': lr_scheduler.state_dict() if lr_scheduler is not None else None,
+        }
+        save_path = os.path.join(self.logging_dir, str(epoch)+'.pt')
+        torch.save(train_dict, save_path)
         print((" Saving the model to %s..." % (save_path)))
-        np.savez(save_path, model=data)
         print("Model saved.")
-        # rfile=os.path.join(save_dir, str(epoch-1)+".npz")
-        # if os.path.exists(rfile):
-        #     os.remove(rfile)
+        rfile=os.path.join(self.logging_dir, str(epoch-1)+".pt")
+        if os.path.exists(rfile):
+            os.remove(rfile)
 
     #CLS and Retri metrics
     def test(self, is_zs=False):
@@ -281,8 +286,8 @@ class Base(object):
     #This is for MST metrics
     def get_acc_bwt(self, cls_acc):
         BWT = np.zeros(self.phase+1)
-        for i in range(8):
-            self.phase_matrix[self.phase][i] = cls_acc[10*i: 10*(i+1)].mean()
+        for i in range(self.phase_matrix.shape[0]):
+            self.phase_matrix[self.phase][i] = cls_acc[(len(cls_acc)//self.phase_matrix.shape[0])*i: (len(cls_acc)//self.phase_matrix.shape[0])*(i+1)].mean()
             if i < self.phase:
                 BWT[i] = self.phase_matrix[self.phase][i] - self.phase_matrix[i][i]
         acc = self.phase_matrix[self.phase][:self.phase+1].mean()
@@ -291,7 +296,6 @@ class Base(object):
         return acc, bwt, self.phase_matrix
 
     def plot_confusion_matrix(self):
-        matplotlib.use('agg')
         fig = plt.figure()
         plt.imshow(self.phase_matrix, interpolation='nearest', cmap=plt.cm.Blues)
         plt.tight_layout()

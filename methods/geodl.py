@@ -1,4 +1,5 @@
 import sys
+import os
 from .base import Base
 import torch
 from torch import nn, optim
@@ -29,9 +30,24 @@ class GeoDL(Base):
             text_fmask = torch.zeros(len(C), dtype=torch.long).to(device)
             text_fmask[(len(C)//self.phase_matrix.shape[0])*self.phase: (len(C)//self.phase_matrix.shape[0])*(self.phase+1)] = 1
             text_fmask.view(1, -1)
-        
+
+        resume_ckpt = None
+        for pt_file in os.listdir(self.logging_dir):
+            if os.path.splitext(pt_file)[1] == ".pt":
+                resume_ckpt = pt_file
+        if resume_ckpt is not None:
+            checkpoint = torch.load(pt_file)
+            self.model.load_state_dict(checkpoint['model'])
+            if checkpoint['optimizer'] is not None:
+                optimizer.load_state_dict(checkpoint['optimizer'])
+            if checkpoint['lr_scheduler'] is not None:
+                lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            start_epoch = checkpoint['epoch'] if self.mode == "ost" else -1
+        else:
+            start_epoch = -1
+
         scaler = GradScaler()
-        for j in range(self.epoch):
+        for j in range(start_epoch+1, self.epoch):
             running_loss = 0.0
             self.model.train()
             
@@ -49,18 +65,18 @@ class GeoDL(Base):
                     text_features, _ = self.model.encode_text(C)
 
                     try:
-                        if args.part == "wm":
+                        if self.part == "wm":
                             dist_image = gfk.fit(image_features, image_base)
                             if self.mode == "mst":
-                                dist_text = gfk.fit(text_features[:10*(self.phase+1)], text_base[:10*(self.phase+1)])
+                                dist_text = gfk.fit(text_features[:(len(C)//self.phase_matrix.shape[0])*(self.phase+1)], text_base[:(len(C)//self.phase_matrix.shape[0])*(self.phase+1)])
                             else:
                                 dist_text = gfk.fit(text_features, text_base)
-                        elif args.part == "io":
+                        elif self.part == "io":
                             dist_image = gfk.fit(image_features, image_base)
                             dist_text = torch.zeros_like(dist_image)
-                        elif args.part == "to":
+                        elif self.part == "to":
                             if self.mode == "mst":
-                                dist_text = gfk.fit(text_features[:10*(self.phase+1)], text_base[:10*(self.phase+1)])
+                                dist_text = gfk.fit(text_features[:(len(C)//self.phase_matrix.shape[0])*(self.phase+1)], text_base[:(len(C)//self.phase_matrix.shape[0])*(self.phase+1)])
                             else:
                                 dist_text = gfk.fit(text_features, text_base)
                             dist_image = torch.zeros_like(dist_text)                       
@@ -146,8 +162,9 @@ class GeoDL(Base):
                 self.writer.add_scalar('flickr_t2i@10', t2i10, global_step=j)
 
                 sys.stdout = temp
-                if self.save_dir is not None:
-                    self.save(j)
+                #if self.save_dir is not None:
+                #    self.save(j)
+                self.save(j, optimizer, lr_scheduler)
                 
         if self.mode == "mst":
             log_txt = self.logging_dir + f"{self.method}_{self.mode}.txt"
@@ -190,8 +207,8 @@ class GeoDL(Base):
             self.writer.add_figure('Phase%d'%self.phase, figure=self.plot_confusion_matrix())
 
             sys.stdout = temp
-            if self.save_dir is not None:
-                self.save(self.phase)
+            #if self.save_dir is not None:
+            self.save(self.phase)
             
             return self.model, global_step, self.phase_matrix
         else:
