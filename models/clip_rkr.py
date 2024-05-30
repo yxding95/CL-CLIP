@@ -504,8 +504,8 @@ class CLIP_RKR(nn.Module):
         require_grad_params = []
         names = []
 
-        if loras != None:
-            loras = torch.load(loras)
+        #if loras != None:
+        #    loras = torch.load(loras)
 
         for _module, name, _child_module in _find_modules(
             self, target_replace_module, search_class=[nn.Linear]
@@ -570,3 +570,34 @@ class CLIP_RKR(nn.Module):
                 names.append(name)
 
         return require_grad_params, names
+
+
+    def extract_lora_ups_down(self, target_replace_module=DEFAULT_TARGET_REPLACE):
+
+        loras = []
+
+        for _m, _n, _child_module in _find_modules(
+            self,
+            target_replace_module,
+            search_class=[LoraInjectedLinear, WoLoraInjectedLinear],
+        ):
+            loras.append((_child_module.lora_up, _child_module.lora_down))
+
+        if len(loras) == 0:
+            raise ValueError("No lora injected.")
+
+        return loras
+
+    def save_lora_weight(
+        self,
+        target_replace_module=DEFAULT_TARGET_REPLACE,
+    ):
+        weights = []
+        for _up, _down in self.extract_lora_ups_down(
+            self, target_replace_module=target_replace_module
+        ):
+            weights.append(_up.weight.to("cpu")) #.to(torch.float16)
+            weights.append(_down.weight.to("cpu")) #.to(torch.float16)
+
+        #torch.save(weights, path)
+        return weights

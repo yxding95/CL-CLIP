@@ -33,7 +33,8 @@ class FT(Base):
                 resume_ckpt = pt_file
         if resume_ckpt is not None:
             checkpoint = torch.load(pt_file)
-            self.model.load_state_dict(checkpoint['model'])
+            if self.method == "ft":
+                self.model.load_state_dict(checkpoint['model'])
             if checkpoint['optimizer'] is not None:
                 optimizer.load_state_dict(checkpoint['optimizer'])
             if checkpoint['lr_scheduler'] is not None:
@@ -123,8 +124,30 @@ class FT(Base):
                 self.writer.add_scalar('flickr_t2i@10', t2i10, global_step=j)
 
                 sys.stdout = temp
-                self.save(j, optimizer, lr_scheduler)
-                
+                if self.method == "ft":
+                    self.save(j, optimizer, lr_scheduler)
+                elif self.method in ["rkr", "workr"]:
+                    if self.part == "wm":
+                        target_replace_module = {"VisualTransformer", "Transformer"}
+                    elif self.part == "to":
+                        target_replace_module = {"Transformer",}
+                    elif self.part == "io":
+                        target_replace_module = {"VisualTransformer",}
+                    lora_weights = self.model.save_lora_weight(target_replace_module=target_replace_module)
+                    train_dict = {
+                        'epoch': j,
+                        'model': lora_weights,
+                        'optimizer': optimizer.state_dict(),
+                        'lr_scheduler': lr_scheduler.state_dict(),
+                    }
+                    save_path = os.path.join(self.logging_dir, str(j)+'.pt')
+                    torch.save(train_dict, save_path)
+                    print((" Saving the model to %s..." % (save_path)))
+                    print("Model saved.")
+                    rfile=os.path.join(self.logging_dir, str(j-1)+".pt")
+                    if os.path.exists(rfile):
+                        os.remove(rfile)
+                    
         if self.mode == "mst":
             log_txt = self.logging_dir + f"{self.method}_{self.mode}.txt"
             f = open(log_txt, 'a')
@@ -166,7 +189,29 @@ class FT(Base):
             self.writer.add_figure('Phase%d'%self.phase, figure=self.plot_confusion_matrix())
 
             sys.stdout = temp
-            self.save(self.phase)
+            if self.method == "ft":
+                self.save(self.phase)
+            elif self.method in ["rkr", "workr"]:
+                if self.part == "wm":
+                    target_replace_module = {"VisualTransformer", "Transformer"}
+                elif self.part == "to":
+                    target_replace_module = {"Transformer",}
+                elif self.part == "io":
+                    target_replace_module = {"VisualTransformer",}
+                lora_weights = self.model.save_lora_weight(target_replace_module=target_replace_module)
+                train_dict = {
+                    'epoch': self.phase,
+                    'model': lora_weights,
+                    'optimizer': None,
+                    'lr_scheduler': None,
+                }
+                save_path = os.path.join(self.logging_dir, str(j)+'.pt')
+                torch.save(train_dict, save_path)
+                print((" Saving the model to %s..." % (save_path)))
+                print("Model saved.")
+                rfile=os.path.join(self.logging_dir, str(j-1)+".pt")
+                if os.path.exists(rfile):
+                    os.remove(rfile)
 
             return self.model, global_step, self.phase_matrix
         else:
