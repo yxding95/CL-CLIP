@@ -205,11 +205,11 @@ class FT(Base):
                     'optimizer': None,
                     'lr_scheduler': None,
                 }
-                save_path = os.path.join(self.logging_dir, str(j)+'.pt')
+                save_path = os.path.join(self.logging_dir, str(self.phase)+'.pt')
                 torch.save(train_dict, save_path)
                 print((" Saving the model to %s..." % (save_path)))
                 print("Model saved.")
-                rfile=os.path.join(self.logging_dir, str(j-1)+".pt")
+                rfile=os.path.join(self.logging_dir, str(self.phase-1)+".pt")
                 if os.path.exists(rfile):
                     os.remove(rfile)
 
