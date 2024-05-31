@@ -30,9 +30,9 @@ class FT(Base):
         resume_ckpt = None
         for pt_file in os.listdir(self.logging_dir):
             if os.path.splitext(pt_file)[1] == ".pt":
-                resume_ckpt = pt_file
+                resume_ckpt = self.logging_dir + pt_file
         if resume_ckpt is not None:
-            checkpoint = torch.load(pt_file)
+            checkpoint = torch.load(resume_ckpt)
             if self.method == "ft":
                 self.model.load_state_dict(checkpoint['model'])
             if checkpoint['optimizer'] is not None:
