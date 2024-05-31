@@ -147,10 +147,20 @@ def main(args):
             target_replace_module = {"Transformer",}
         elif args.part == "io":
             target_replace_module = {"VisualTransformer",}
+            
+        resume_ckpt = None
+        for pt_file in os.listdir(args.logging_dir):
+            if os.path.splitext(pt_file)[1] == ".pt":
+                resume_ckpt = args.logging_dir + pt_file
+        if resume_ckpt is not None:
+            checkpoint = torch.load(resume_ckpt)
+            loras = checkpoint["model"]
+        else:
+            loras = None
         if args.method == "rkr":
-            require_grad_params, names = model.inject_trainable_rkr(target_replace_module=target_replace_module)
+            require_grad_params, names = model.inject_trainable_rkr(target_replace_module=target_replace_module, loras=loras)
         elif args.method == "workr":
-            require_grad_params, names = model.inject_trainable_rkr(target_replace_module=target_replace_module, woLora=True)
+            require_grad_params, names = model.inject_trainable_rkr(target_replace_module=target_replace_module, loras=loras, woLora=True)
         
     batch_size = args.batch
     num_workers = args.workers

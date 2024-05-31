@@ -149,9 +149,9 @@ def main(args):
         resume_ckpt = None
         for pt_file in os.listdir(args.logging_dir):
             if os.path.splitext(pt_file)[1] == ".pt":
-                resume_ckpt = pt_file
+                resume_ckpt = args.logging_dir + pt_file
         if resume_ckpt is not None:
-            checkpoint = torch.load(pt_file)
+            checkpoint = torch.load(resume_ckpt)
             loras = checkpoint["model"]
         else:
             loras = None
