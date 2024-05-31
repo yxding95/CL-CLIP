@@ -594,7 +594,7 @@ class CLIP_RKR(nn.Module):
     ):
         weights = []
         for _up, _down in self.extract_lora_ups_down(
-            self, target_replace_module=target_replace_module
+            target_replace_module=target_replace_module
         ):
             weights.append(_up.weight.to("cpu")) #.to(torch.float16)
             weights.append(_down.weight.to("cpu")) #.to(torch.float16)
