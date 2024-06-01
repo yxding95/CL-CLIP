@@ -135,8 +135,12 @@ class Base(object):
         
         if "phase" in input_params.keys():
             self.phase = input_params["phase"]
+        else:
+            self.phase = None
         if "phase_matrix" in input_params.keys():
             self.phase_matrix = input_params["phase_matrix"]
+        else:
+            self.phase_matrix = None
 
     def save(self, epoch, optimizer=None, lr_scheduler=None):
         train_dict = {
@@ -144,6 +148,8 @@ class Base(object):
             'model': self.model.state_dict(),
             'optimizer': optimizer.state_dict() if optimizer is not None else None,
             'lr_scheduler': lr_scheduler.state_dict() if lr_scheduler is not None else None,
+            'phase_matrix': self.phase_matrix,
+            'phase': self.phase,
         }
         save_path = os.path.join(self.logging_dir, str(epoch)+'.pt')
         torch.save(train_dict, save_path)

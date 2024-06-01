@@ -139,6 +139,8 @@ class FT(Base):
                         'model': lora_weights,
                         'optimizer': optimizer.state_dict(),
                         'lr_scheduler': lr_scheduler.state_dict(),
+                        'phase_matrix': self.phase_matrix,
+                        'phase': self.phase,
                     }
                     save_path = os.path.join(self.logging_dir, str(j)+'.pt')
                     torch.save(train_dict, save_path)
@@ -204,6 +206,8 @@ class FT(Base):
                     'model': lora_weights,
                     'optimizer': None,
                     'lr_scheduler': None,
+                    'phase_matrix': self.phase_matrix,
+                    'phase': self.phase,
                 }
                 save_path = os.path.join(self.logging_dir, str(self.phase)+'.pt')
                 torch.save(train_dict, save_path)

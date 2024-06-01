@@ -246,7 +246,17 @@ def main(args):
         
     else:
         phase_matrix = np.zeros((5, 5))
-        for phase in range(phase_matrix.shape[0]):
+        resume_ckpt = None
+        for pt_file in os.listdir(args.logging_dir):
+            if os.path.splitext(pt_file)[1] == ".pt":
+                resume_ckpt = args.logging_dir + pt_file
+        if resume_ckpt is not None:
+            checkpoint = torch.load(resume_ckpt)
+            start_phase = checkpoint["phase"]
+            phase_matrix = checkpoint["phase_matrix"]
+        else:
+            start_phase = -1
+        for phase in range(start_phase+1, phase_matrix.shape[0]):
             trainset = EuroSAT(args.update_img, phase=phase, pseudo_cls=args.pseudo_cls, pseudo_length=args.pseudo_length)
             train_loader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 
