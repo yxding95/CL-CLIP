@@ -141,6 +141,7 @@ class FT(Base):
                         'lr_scheduler': lr_scheduler.state_dict(),
                         'phase_matrix': self.phase_matrix,
                         'phase': self.phase,
+                        'global_step': None,
                     }
                     save_path = os.path.join(self.logging_dir, str(j)+'.pt')
                     torch.save(train_dict, save_path)
@@ -192,7 +193,7 @@ class FT(Base):
 
             sys.stdout = temp
             if self.method == "ft":
-                self.save(self.phase)
+                self.save(self.phase, global_step=global_step)
             elif self.method in ["rkr", "workr"]:
                 if self.part == "wm":
                     target_replace_module = {"VisualTransformer", "Transformer"}
@@ -208,6 +209,7 @@ class FT(Base):
                     'lr_scheduler': None,
                     'phase_matrix': self.phase_matrix,
                     'phase': self.phase,
+                    'global_step': global_step,
                 }
                 save_path = os.path.join(self.logging_dir, str(self.phase)+'.pt')
                 torch.save(train_dict, save_path)

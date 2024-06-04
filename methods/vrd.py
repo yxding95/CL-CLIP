@@ -206,7 +206,7 @@ class VRD(Base):
 
             sys.stdout = temp
             #if self.save_dir is not None:
-            self.save(self.phase)
+            self.save(self.phase, global_step=global_step)
             
             return self.model, global_step, self.phase_matrix
         else:

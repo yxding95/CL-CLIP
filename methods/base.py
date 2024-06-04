@@ -142,7 +142,7 @@ class Base(object):
         else:
             self.phase_matrix = None
 
-    def save(self, epoch, optimizer=None, lr_scheduler=None):
+    def save(self, epoch, optimizer=None, lr_scheduler=None, global_step=None):
         train_dict = {
             'epoch': epoch,
             'model': self.model.state_dict(),
@@ -150,6 +150,7 @@ class Base(object):
             'lr_scheduler': lr_scheduler.state_dict() if lr_scheduler is not None else None,
             'phase_matrix': self.phase_matrix,
             'phase': self.phase,
+            'global_step': global_step,
         }
         save_path = os.path.join(self.logging_dir, str(epoch)+'.pt')
         torch.save(train_dict, save_path)

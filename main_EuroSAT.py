@@ -254,6 +254,7 @@ def main(args):
             checkpoint = torch.load(resume_ckpt)
             start_phase = checkpoint["phase"]
             phase_matrix = checkpoint["phase_matrix"]
+            global_step = checkpoint["global_step"]
         else:
             start_phase = -1
         for phase in range(start_phase+1, phase_matrix.shape[0]):
