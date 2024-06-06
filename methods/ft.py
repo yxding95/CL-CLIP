@@ -133,7 +133,7 @@ class FT(Base):
                         target_replace_module = {"Transformer",}
                     elif self.part == "io":
                         target_replace_module = {"VisualTransformer",}
-                    lora_weights = self.model.save_lora_weight(target_replace_module=target_replace_module)
+                    lora_weights = self.model.save_lora_weight(target_replace_module=target_replace_module, woLora=self.method=="workr")
                     train_dict = {
                         'epoch': j,
                         'model': lora_weights,
@@ -201,7 +201,7 @@ class FT(Base):
                     target_replace_module = {"Transformer",}
                 elif self.part == "io":
                     target_replace_module = {"VisualTransformer",}
-                lora_weights = self.model.save_lora_weight(target_replace_module=target_replace_module)
+                lora_weights = self.model.save_lora_weight(target_replace_module=target_replace_module, woLora=self.method=="workr")
                 train_dict = {
                     'epoch': self.phase,
                     'model': lora_weights,
