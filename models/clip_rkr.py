@@ -540,6 +540,7 @@ class CLIP_RKR(nn.Module):
                     _module._modules[name].lora_up.weight = torch.nn.Parameter(loras.pop(0))
                     _module._modules[name].lora_down.weight = torch.nn.Parameter(loras.pop(0))
                     _module._modules[name].scale = torch.nn.Parameter(loras.pop(0))
+                    _module._modules[name] = _module._modules[name].to(_child_module.weight.device).to(_child_module.weight.dtype)
 
                 _module._modules[name].lora_up.weight.requires_grad = True
                 _module._modules[name].lora_down.weight.requires_grad = True
@@ -565,6 +566,7 @@ class CLIP_RKR(nn.Module):
 
                 if loras != None:
                     _module._modules[name].scale = torch.nn.Parameter(loras.pop(0))
+                    _module._modules[name] = _module._modules[name].to(_child_module.weight.device).to(_child_module.weight.dtype)
 
                 _module._modules[name].scale.requires_grad = True
                 names.append(name)
