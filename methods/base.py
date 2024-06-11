@@ -151,7 +151,7 @@ class Base(object):
             'phase_matrix': self.phase_matrix,
             'phase': self.phase,
             'global_step': global_step,
-            'teacher': self.teacher.state_dict() if self.mode=="mst" else None,
+            'teacher': self.teacher.state_dict() if self.mode=="mst" and self.method not in ["ft", "rkr", "workr"] else None,
         }
         save_path = os.path.join(self.logging_dir, str(epoch)+'.pt')
         torch.save(train_dict, save_path)
